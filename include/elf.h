@@ -281,6 +281,8 @@ typedef int64_t  Elf64_Sxword;
 #define AT_L2_CACHESHAPE  36	/*   bits 4-7: log2 of line size.  */
 #define AT_L3_CACHESHAPE  37	/*   val&~255: cache size.  */
 
+#define AT_SUN_LDDATA 2016      /* Solaris specific, rld data segment */
+
 typedef struct dynamic{
   Elf32_Sword d_tag;
   union{

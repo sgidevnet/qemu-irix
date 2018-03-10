@@ -690,6 +690,15 @@ static inline void init_thread(struct target_pt_regs *regs,
 }
 
 #endif
+
+#ifdef TARGET_ABI_SOLARIS
+#define DLINFO_ARCH_ITEMS       1
+#define ARCH_DLINFO                                     \
+    do {                                                \
+        NEW_AUX_ENT(AT_SUN_LDDATA, (abi_ulong)(interp_info ? interp_info->start_data : 0)); \
+    } while (0)
+#endif
+
 #endif
 
 #ifdef TARGET_PPC
@@ -1606,8 +1615,13 @@ static abi_ulong setup_arg_pages(struct linux_binprm *bprm,
         guard = qemu_real_host_page_size;
     }
 
+#ifdef TARGET_ABI_IRIX
+    error = target_mmap(0x7fff8000 - size - guard, size + guard, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#else
     error = target_mmap(0, size + guard, PROT_READ | PROT_WRITE,
                         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
     if (error == -1) {
         perror("mmap stack");
         exit(-1);
@@ -1799,6 +1813,12 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
     info->arg_start = u_argv;
     info->arg_end = u_argv + argc * n;
 
+#ifdef TARGET_ABI_IRIX
+#define NEW_AUX_ENT(id, val) do {               \
+        put_user_u32(id, u_auxv);  u_auxv += n; \
+        put_user_ual(val, u_auxv); u_auxv += n; \
+    } while(0)
+#else
     /* This is correct because Linux defines
      * elf_addr_t as Elf32_Off / Elf64_Off
      */
@@ -1806,6 +1826,7 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
         put_user_ual(id, u_auxv);  u_auxv += n; \
         put_user_ual(val, u_auxv); u_auxv += n; \
     } while(0)
+#endif
 
 #ifdef ARCH_DLINFO
     /*
@@ -1817,7 +1838,11 @@ static abi_ulong create_elf_tables(abi_ulong p, int argc, int envc,
     /* There must be exactly DLINFO_ITEMS entries here, or the assert
      * on info->auxv_len will trigger.
      */
+#ifdef TARGET_ABI_IRIX
+    NEW_AUX_ENT(AT_PHDR, (abi_ulong)(info->load_bias + info->phdr_offset));
+#else
     NEW_AUX_ENT(AT_PHDR, (abi_ulong)(info->load_addr + exec->e_phoff));
+#endif
     NEW_AUX_ENT(AT_PHENT, (abi_ulong)(sizeof (struct elf_phdr)));
     NEW_AUX_ENT(AT_PHNUM, (abi_ulong)(exec->e_phnum));
     NEW_AUX_ENT(AT_PAGESZ, (abi_ulong)(MAX(TARGET_PAGE_SIZE, getpagesize())));
@@ -2016,6 +2041,87 @@ exit_errmsg:
 }
 
 
+#ifdef TARGET_ABI_IRIX
+/* SGI_ELFMAP: Map ELF sections into the address space.
+   IMAGE_FD is the open file descriptor for the image.
+*/
+abi_ulong sgi_map_elf_image(int image_fd, struct elf_phdr *phdr, int phnum)
+{
+    abi_ulong load_addr, load_bias, loaddr, hiaddr, error;
+    int i;
+    const char *errmsg;
+
+    /* Find the maximum size of the image and allocate an appropriate
+       amount of memory to handle that.  */
+    loaddr = -1, hiaddr = 0;
+    for (i = 0; i < phnum; ++i) {
+        if (phdr[i].p_type == PT_LOAD) {
+            abi_ulong a = phdr[i].p_vaddr;
+            if (a < loaddr) {
+                loaddr = a;
+            }
+            a += phdr[i].p_memsz;
+            if (a > hiaddr) {
+                hiaddr = a;
+            }
+        }
+    }
+
+    /* The image indicates that it can be loaded anywhere.  Find a
+       location that can hold the memory space required.  If the
+       image is pre-linked, LOADDR will be non-zero.  Since we do
+       not supply MAP_FIXED here we'll use that address if and
+       only if it remains available.  */
+    load_addr = target_mmap(loaddr, hiaddr - loaddr, PROT_NONE,
+                            MAP_PRIVATE | MAP_ANON | MAP_NORESERVE,
+                            -1, 0);
+    if (load_addr == -1) {
+        goto exit_perror;
+    }
+    /* unmap to avoid failure if objects would be loaded into a hole */
+    target_munmap(load_addr, hiaddr - loaddr);
+    load_bias = load_addr - loaddr;
+
+    for (i = 0; i < phnum; i++) {
+        struct elf_phdr *eppnt = phdr + i;
+        if (eppnt->p_type == PT_LOAD) {
+            abi_ulong vaddr, vaddr_po, vaddr_ps, vaddr_ef, vaddr_em;
+            int elf_prot = 0;
+
+            if (eppnt->p_flags & PF_R) elf_prot =  PROT_READ;
+            if (eppnt->p_flags & PF_W) elf_prot |= PROT_WRITE;
+            if (eppnt->p_flags & PF_X) elf_prot |= PROT_EXEC;
+
+            vaddr = load_bias + eppnt->p_vaddr;
+            vaddr_po = TARGET_ELF_PAGEOFFSET(vaddr);
+            vaddr_ps = TARGET_ELF_PAGESTART(vaddr);
+
+            error = target_mmap(vaddr_ps, eppnt->p_filesz + vaddr_po,
+                                elf_prot, MAP_PRIVATE | MAP_FIXED,
+                                image_fd, eppnt->p_offset - vaddr_po);
+            if (error == -1) {
+                goto exit_perror;
+            }
+
+            vaddr_ef = vaddr + eppnt->p_filesz;
+            vaddr_em = vaddr + eppnt->p_memsz;
+
+            /* If the load segment requests extra zeros (e.g. bss), map it.  */
+            if (vaddr_ef < vaddr_em) {
+                zero_bss(vaddr_ef, vaddr_em, elf_prot);
+            }
+        }
+    }
+
+    return load_bias + phdr[0].p_vaddr;
+
+ exit_perror:
+    errmsg = strerror(errno);
+    fprintf(stderr, "error in syssgi elfmap: %s\n", errmsg);
+    return -ENOEXEC;
+}
+#endif
+
 /* Load an ELF image into the address space.
 
    IMAGE_NAME is the filename of the image, to use in error messages.
@@ -2099,6 +2205,8 @@ static void load_elf_image(const char *image_name, int image_fd,
         if (load_addr == -1) {
             goto exit_perror;
         }
+        /* unmap to avoid failure if objects would be loaded into a hole */
+        target_munmap(load_addr, hiaddr - loaddr);
     } else if (pinterp_name != NULL) {
         /* This is the main executable.  Make sure that the low
            address does not conflict with MMAP_MIN_ADDR or the
@@ -2215,6 +2323,11 @@ static void load_elf_image(const char *image_name, int image_fd,
             }
             *pinterp_name = interp_name;
         }
+#ifdef TARGET_ABI_IRIX
+        else if (eppnt->p_type == PT_PHDR) {
+            info->phdr_offset = eppnt->p_vaddr;
+        }
+#endif
     }
 
     if (info->end_data == 0) {
@@ -2230,6 +2343,17 @@ static void load_elf_image(const char *image_name, int image_fd,
     mmap_unlock();
 
     close(image_fd);
+#ifdef TARGET_ABI_IRIX
+    /* PRDA hack */
+    error = target_mmap(0x200000, TARGET_PAGE_SIZE, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS,
+                        -1, 0);
+    if (error == -1) {
+        goto exit_perror;
+    }
+    put_user(getpid(), 0x200e00, target_pid_t);
+    put_user(getpid(), 0x200e40, target_pid_t);
+#endif
     return;
 
  exit_read:
@@ -2463,6 +2587,7 @@ int load_elf_binary(struct linux_binprm *bprm, struct image_info *info)
     struct elfhdr elf_ex;
     char *elf_interpreter = NULL;
     char *scratch;
+    abi_ulong top;
 
     info->start_mmap = (abi_ulong)ELF_START_MMAP;
 
@@ -2476,7 +2601,7 @@ int load_elf_binary(struct linux_binprm *bprm, struct image_info *info)
 
     /* Do this so that we can load the interpreter, if need be.  We will
        change some of these later */
-    bprm->p = setup_arg_pages(bprm, info);
+    bprm->p = top = setup_arg_pages(bprm, info);
 
     scratch = g_new0(char, TARGET_PAGE_SIZE);
     if (STACK_GROWS_DOWN) {
@@ -2507,6 +2632,26 @@ int load_elf_binary(struct linux_binprm *bprm, struct image_info *info)
         fprintf(stderr, "%s: %s\n", bprm->filename, strerror(E2BIG));
         exit(-1);
     }
+#ifdef TARGET_ABI_IRIX
+    /* page alignment */
+    if (bprm->p % TARGET_PAGE_SIZE) {
+        int o = bprm->p % TARGET_PAGE_SIZE;
+        int l = top - bprm->p;
+        int p = bprm->p - o;
+        char *ptr = lock_user(VERIFY_WRITE, p, l+o, 0);
+        if (!ptr) {
+            fprintf(stderr, "%s: %s\n", bprm->filename, strerror(EFAULT));
+            exit(-1);
+        }
+        memmove(ptr, ptr+o, l);
+        unlock_user(ptr, p, 1);
+        /* adjust pointers by alignment offset */
+        bprm->p -= o;
+        info->file_string -= o;
+        info->arg_strings -= o;
+        info->env_strings -= o;
+    }
+#endif
 
     if (elf_interpreter) {
         load_elf_interp(elf_interpreter, &interp_info, bprm->buf);

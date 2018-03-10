@@ -6669,7 +6669,7 @@ target_name=$(echo $target | cut -d '-' -f 1)
 target_bigendian="no"
 
 case "$target_name" in
-  armeb|aarch64_be|hppa|lm32|m68k|microblaze|mips|mipsn32|mips64|moxie|or1k|ppc|ppcemb|ppc64|ppc64abi32|s390x|sh4eb|sparc|sparc64|sparc32plus|xtensaeb)
+  armeb|aarch64_be|hppa|lm32|m68k|microblaze|irix|irixn32|irix64|mips|mipsn32|mips64|moxie|or1k|ppc|ppcemb|ppc64|ppc64abi32|s390x|sh4eb|solaris|solaris64|sparc|sparc64|sparc32plus|xtensaeb)
   target_bigendian=yes
   ;;
 esac
@@ -6746,6 +6746,28 @@ case "$target_name" in
     TARGET_ARCH=microblaze
     bflt="yes"
   ;;
+  irix)
+    TARGET_ARCH=mips
+    TARGET_ABI_DIR=irix
+    TARGET_BASE_ARCH=mips
+    echo "TARGET_ABI_MIPSO32=y" >> $config_target_mak
+    echo "TARGET_ABI_IRIX=y" >> $config_target_mak
+  ;;
+  irixn32)
+    TARGET_ARCH=mips64
+    TARGET_ABI_DIR=irix
+    TARGET_BASE_ARCH=mips
+    echo "TARGET_ABI_MIPSN32=y" >> $config_target_mak
+    echo "TARGET_ABI32=y" >> $config_target_mak
+    echo "TARGET_ABI_IRIX=y" >> $config_target_mak
+  ;;
+  irix64)
+    TARGET_ARCH=mips64
+    TARGET_ABI_DIR=irix
+    TARGET_BASE_ARCH=mips
+    echo "TARGET_ABI_MIPSN64=y" >> $config_target_mak
+    echo "TARGET_ABI_IRIX=y" >> $config_target_mak
+  ;;
   mips|mipsel)
     TARGET_ARCH=mips
     echo "TARGET_ABI_MIPSO32=y" >> $config_target_mak
@@ -6810,6 +6832,17 @@ case "$target_name" in
   sh4|sh4eb)
     TARGET_ARCH=sh4
     bflt="yes"
+  ;;
+  solaris)
+    TARGET_ARCH=sparc
+    TARGET_ABI_DIR=solaris
+    echo "TARGET_ABI_SOLARIS=y" >> $config_target_mak
+  ;;
+  solaris64)
+    TARGET_ARCH=sparc64
+    TARGET_ABI_DIR=solaris
+    TARGET_BASE_ARCH=sparc
+    echo "TARGET_ABI_SOLARIS=y" >> $config_target_mak
   ;;
   sparc)
   ;;
@@ -6961,7 +6994,7 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
   microblaze*)
     disas_config "MICROBLAZE"
   ;;
-  mips*)
+  irix*|mips*)
     disas_config "MIPS"
   ;;
   moxie*)
@@ -6985,7 +7018,7 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
   sh4)
     disas_config "SH4"
   ;;
-  sparc*)
+  solaris*|sparc*)
     disas_config "SPARC"
   ;;
   xtensa*)

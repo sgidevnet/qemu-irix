@@ -58,6 +58,9 @@ struct image_info {
         abi_ulong       pt_dynamic_addr;
         struct image_info *other_info;
 #endif
+#ifdef TARGET_ABI_IRIX
+        abi_ulong       phdr_offset;
+#endif
 };
 
 #ifdef TARGET_I386
@@ -120,6 +123,22 @@ typedef struct TaskState {
     abi_ulong heap_base;
     abi_ulong heap_limit;
 #endif
+#if defined(TARGET_ABI_IRIX)
+    struct TaskState *parent_task;
+    abi_ulong ctx_link;
+    abi_ulong sigtramp;
+    unsigned char prda[TARGET_PAGE_SIZE];
+    int procblk_count;
+    pthread_mutex_t procblk_mutex;
+    pthread_cond_t procblk_cond;
+    int is_pthread;
+    int is_blocked;
+    int termchild_sig;
+    int exit_sig;
+#endif
+#if defined(TARGET_ABI_SOLARIS)
+    abi_ulong ctx_link;
+#endif
     abi_ulong stack_base;
     int used; /* non zero if used */
     struct image_info *info;
@@ -152,6 +171,8 @@ typedef struct TaskState {
 
 extern char *exec_path;
 void init_task_state(TaskState *ts);
+TaskState *find_task_state(pid_t tid);
+CPUState *find_cpu_state(pid_t tid);
 void task_settid(TaskState *);
 void stop_all_tasks(void);
 extern const char *qemu_uname_release;
@@ -189,6 +210,15 @@ int loader_exec(int fdexec, const char *filename, char **argv, char **envp,
 uint32_t get_elf_eflags(int fd);
 int load_elf_binary(struct linux_binprm *bprm, struct image_info *info);
 int load_flt_binary(struct linux_binprm *bprm, struct image_info *info);
+#ifdef TARGET_ABI_IRIX
+#ifdef TARGET_ABI_MIPSN64
+struct elf64_phdr;
+abi_ulong sgi_map_elf_image(int image_fd, struct elf64_phdr *phdr, int phnum);
+#else
+struct elf32_phdr;
+abi_ulong sgi_map_elf_image(int image_fd, struct elf32_phdr *phdr, int phnum);
+#endif
+#endif
 
 abi_long memcpy_to_target(abi_ulong dest, const void *src,
                           unsigned long len);
@@ -205,8 +235,8 @@ void cpu_loop(CPUArchState *env);
 const char *target_strerror(int err);
 int get_osversion(void);
 void init_qemu_uname_release(void);
-void fork_start(void);
-void fork_end(int child);
+void fork_start(CPUArchState *env);
+void fork_end(CPUArchState *env, int child);
 
 /* Creates the initial guest address space in the host memory space using
  * the given host start address hint and size.  The guest_start parameter
@@ -378,7 +408,7 @@ extern int do_strace;
 
 /* signal.c */
 void process_pending_signals(CPUArchState *cpu_env);
-void signal_init(void);
+void signal_init(CPUArchState *env);
 int queue_signal(CPUArchState *env, int sig, int si_type,
                  target_siginfo_t *info);
 void host_to_target_siginfo(target_siginfo_t *tinfo, const siginfo_t *info);
@@ -387,8 +417,8 @@ int target_to_host_signal(int sig);
 int host_to_target_signal(int sig);
 long do_sigreturn(CPUArchState *env);
 long do_rt_sigreturn(CPUArchState *env);
-abi_long do_sigaltstack(abi_ulong uss_addr, abi_ulong uoss_addr, abi_ulong sp);
-int do_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+abi_long do_sigaltstack(CPUArchState *env, abi_ulong uss_addr, abi_ulong uoss_addr, abi_ulong sp);
+int do_sigprocmask(CPUArchState *env, int how, const sigset_t *set, sigset_t *oldset);
 /**
  * block_signals: block all signals while handling this guest syscall
  *
@@ -407,7 +437,7 @@ int do_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
  *
  * Return value: non-zero if there was a pending signal, zero if not.
  */
-int block_signals(void); /* Returns non zero if signal pending */
+int block_signals(CPUArchState *env); /* Returns non zero if signal pending */
 
 #ifdef TARGET_I386
 /* vm86.c */

@@ -41,9 +41,9 @@ static void sparc_cpu_reset(CPUState *s)
 #ifndef TARGET_SPARC64
     env->wim = 1;
 #endif
-    env->regwptr = env->regbase + (env->cwp * 16);
     CC_OP = CC_OP_FLAGS;
 #if defined(CONFIG_USER_ONLY)
+    env->cwp = env->nwindows - 1;
 #ifdef TARGET_SPARC64
     env->cleanwin = env->nwindows - 2;
     env->cansave = env->nwindows - 2;
@@ -74,6 +74,7 @@ static void sparc_cpu_reset(CPUState *s)
     env->npc = env->pc + 4;
 #endif
     env->cache_control = 0;
+    env->regwptr = env->regbase + (env->cwp * 16);
 }
 
 static bool sparc_cpu_exec_interrupt(CPUState *cs, int interrupt_request)

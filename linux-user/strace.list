@@ -361,6 +361,9 @@
 #ifdef TARGET_NR_getrlimit
 { TARGET_NR_getrlimit, "getrlimit" , NULL, NULL, NULL },
 #endif
+#ifdef TARGET_NR_getrlimit64
+{ TARGET_NR_getrlimit64, "getrlimit64" , NULL, NULL, NULL },
+#endif
 #ifdef TARGET_NR_get_robust_list
 { TARGET_NR_get_robust_list, "get_robust_list" , NULL, NULL, NULL },
 #endif
@@ -485,9 +488,6 @@
 #ifdef TARGET_NR_linkat
 { TARGET_NR_linkat, "linkat" , NULL, print_linkat, NULL },
 #endif
-#ifdef TARGET_NR_Linux
-{ TARGET_NR_Linux, "Linux" , NULL, NULL, NULL },
-#endif
 #ifdef TARGET_NR_listen
 { TARGET_NR_listen, "listen" , NULL, NULL, NULL },
 #endif
@@ -575,6 +575,9 @@
 #ifdef TARGET_NR_mmap2
 { TARGET_NR_mmap2, "mmap2" , NULL, print_mmap2, print_syscall_ret_addr },
 #endif
+#ifdef TARGET_NR_mmap64
+{ TARGET_NR_mmap64, "mmap64" , NULL, NULL, print_syscall_ret_addr },
+#endif
 #ifdef TARGET_NR_modify_ldt
 { TARGET_NR_modify_ldt, "modify_ldt" , NULL, NULL, NULL },
 #endif
@@ -644,6 +647,12 @@
 #ifdef TARGET_NR_nanosleep
 { TARGET_NR_nanosleep, "nanosleep" , NULL, NULL, NULL },
 #endif
+#ifdef TARGET_NR_ngetdents
+{ TARGET_NR_ngetdents, "ngetdents" , NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_ngetdents64
+{ TARGET_NR_ngetdents64, "ngetdents64" , NULL, NULL, NULL },
+#endif
 #ifdef TARGET_NR_fstatat64
 { TARGET_NR_fstatat64, "fstatat64" , NULL, print_fstatat64, NULL },
 #endif
@@ -680,8 +689,14 @@
 #ifdef TARGET_NR_open
 { TARGET_NR_open, "open" , NULL, print_open, NULL },
 #endif
+#ifdef TARGET_NR_open64
+{ TARGET_NR_open64, "open64" , NULL, print_open, NULL },
+#endif
 #ifdef TARGET_NR_openat
 { TARGET_NR_openat, "openat" , NULL, print_openat, NULL },
+#endif
+#ifdef TARGET_NR_openat64
+{ TARGET_NR_openat64, "openat64" , NULL, print_openat, NULL },
 #endif
 #ifdef TARGET_NR_osf_adjtime
 { TARGET_NR_osf_adjtime, "osf_adjtime" , NULL, NULL, NULL },
@@ -1328,6 +1343,9 @@
 #ifdef TARGET_NR_setrlimit
 { TARGET_NR_setrlimit, "setrlimit" , NULL, NULL, NULL },
 #endif
+#ifdef TARGET_NR_setrlimit64
+{ TARGET_NR_setrlimit64, "setrlimit64" , NULL, NULL, NULL },
+#endif
 #ifdef TARGET_NR_set_robust_list
 { TARGET_NR_set_robust_list, "set_robust_list" , NULL, NULL, NULL },
 #endif
@@ -1358,6 +1376,12 @@
 #endif
 #ifdef TARGET_NR_sgetmask
 { TARGET_NR_sgetmask, "sgetmask" , NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_sgiprctl
+{ TARGET_NR_sgiprctl, "sgiprctl" , NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_sgisysinfo
+{ TARGET_NR_sgisysinfo, "sgisysinfo" , NULL, NULL, NULL },
 #endif
 #ifdef TARGET_NR_shmat
 { TARGET_NR_shmat, "shmat" , NULL, NULL, print_syscall_ret_addr },
@@ -1490,6 +1514,12 @@
 #endif
 #ifdef TARGET_NR_sysmips
 { TARGET_NR_sysmips, "sysmips" , NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_sysmp
+{ TARGET_NR_sysmp, "sysmp" , NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_syssgi
+{ TARGET_NR_syssgi, "syssgi" , NULL, NULL, NULL },
 #endif
 #ifdef TARGET_NR_sys_setaltroot
 { TARGET_NR_sys_setaltroot, "sys_setaltroot" , NULL, NULL, NULL },
@@ -1641,6 +1671,18 @@
 #ifdef TARGET_NR_writev
 { TARGET_NR_writev, "writev" , "%s(%d,%p,%#x)", NULL, NULL },
 #endif
+#ifdef TARGET_NR_fxstat
+{ TARGET_NR_fxstat, "fxstat" , NULL, print_fstat, NULL },
+#endif
+#ifdef TARGET_NR_lxstat
+{ TARGET_NR_lxstat, "lxstat" , NULL, print_lstat, NULL },
+#endif
+#ifdef TARGET_NR_xstat
+{ TARGET_NR_xstat, "xstat" , NULL, print_stat, NULL },
+#endif
+#ifdef TARGET_NR_lseek64
+{ TARGET_NR_lseek64, "lseek64" , NULL, NULL, NULL },
+#endif
 #ifdef TARGET_NR_utimensat
 { TARGET_NR_utimensat, "utimensat", NULL, print_utimensat, NULL },
 #endif
@@ -1658,4 +1700,37 @@
 #endif
 #ifdef TARGET_NR_atomic_barrier
 { TARGET_NR_atomic_barrier, "atomic_barrier", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_getcontext
+{ TARGET_NR_getcontext, "getcontext", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_setcontext
+{ TARGET_NR_setcontext, "setcontext", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_statvfs
+{ TARGET_NR_statvfs, "statvfs", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_statvfs64
+{ TARGET_NR_statvfs64, "statvfs64", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_fstatvfs
+{ TARGET_NR_fstatvfs, "fstatvfs", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_fstatvfs64
+{ TARGET_NR_fstatvfs64, "fstatvfs64", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_sproc
+{ TARGET_NR_sproc, "sproc", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_nsproc
+{ TARGET_NR_nsproc, "nsproc", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_procblk
+{ TARGET_NR_procblk, "procblk", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_psema_cntl
+{ TARGET_NR_psema_cntl, "psema_cntl", NULL, NULL, NULL },
+#endif
+#ifdef TARGET_NR_usync_cntl
+{ TARGET_NR_usync_cntl, "usync_cntl", NULL, NULL, NULL },
 #endif

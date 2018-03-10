@@ -956,3 +956,26 @@ MSALDST_PROTO(d)
 #undef MSALDST_PROTO
 
 DEF_HELPER_3(cache, void, env, tl, i32)
+
+#ifdef TARGET_ABI_IRIX
+DEF_HELPER_2(irix_prda_ld_8, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_16, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_32, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_64, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_8s, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_16s, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_32s, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_16b, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_32b, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_64b, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_16sb, i64, tl, env)
+DEF_HELPER_2(irix_prda_ld_32sb, i64, tl, env)
+
+DEF_HELPER_3(irix_prda_st_8, void, i64, tl, env)
+DEF_HELPER_3(irix_prda_st_16, void, i64, tl, env)
+DEF_HELPER_3(irix_prda_st_32, void, i64, tl, env)
+DEF_HELPER_3(irix_prda_st_64, void, i64, tl, env)
+DEF_HELPER_3(irix_prda_st_16b, void, i64, tl, env)
+DEF_HELPER_3(irix_prda_st_32b, void, i64, tl, env)
+DEF_HELPER_3(irix_prda_st_64b, void, i64, tl, env)
+#endif

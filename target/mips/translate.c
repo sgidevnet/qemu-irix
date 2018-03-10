@@ -2142,6 +2142,187 @@ static target_ulong pc_relative_pc (DisasContext *ctx)
     return pc;
 }
 
+#ifdef TARGET_ABI_IRIX
+static void (*irix_prda_helpers_ld[MO_SSIZE|MO_BSWAP])(TCGv_i64 ret, TCGv addr, TCGv_ptr env) = {
+    [MO_UB] = gen_helper_irix_prda_ld_8,
+    [MO_UW] = gen_helper_irix_prda_ld_16,
+    [MO_UL] = gen_helper_irix_prda_ld_32,
+    [MO_Q] = gen_helper_irix_prda_ld_64,
+    [MO_SB] = gen_helper_irix_prda_ld_8s,
+    [MO_SW] = gen_helper_irix_prda_ld_16s,
+    [MO_SL] = gen_helper_irix_prda_ld_32s,
+    [MO_UW|MO_BSWAP] = gen_helper_irix_prda_ld_16b,
+    [MO_UL|MO_BSWAP] = gen_helper_irix_prda_ld_32b,
+    [MO_Q|MO_BSWAP] = gen_helper_irix_prda_ld_64b,
+    [MO_SW|MO_BSWAP] = gen_helper_irix_prda_ld_16sb,
+    [MO_SL|MO_BSWAP] = gen_helper_irix_prda_ld_32sb,
+};
+
+static void (*irix_prda_helpers_st[MO_SSIZE|MO_BSWAP])(TCGv_i64 val, TCGv addr, TCGv_ptr env) = {
+    [MO_UB] = gen_helper_irix_prda_st_8,
+    [MO_UW] = gen_helper_irix_prda_st_16,
+    [MO_UL] = gen_helper_irix_prda_st_32,
+    [MO_Q] = gen_helper_irix_prda_st_64,
+    [MO_UW|MO_BSWAP] = gen_helper_irix_prda_st_16b,
+    [MO_UL|MO_BSWAP] = gen_helper_irix_prda_st_32b,
+    [MO_Q|MO_BSWAP] = gen_helper_irix_prda_st_64b,
+};
+
+extern int irix_emulate_prda;
+
+static void tcg_gen_irix_ld_i32(TCGv_i32 val, TCGv addr, TCGArg idx, TCGMemOp memop)
+{
+    if (irix_emulate_prda) {
+        TCGv t0, t1;
+        TCGv_i32 t2 = tcg_temp_local_new_i32();
+        TCGv_i64 t3;
+        TCGLabel *l1 = gen_new_label();
+        TCGLabel *l2 = gen_new_label();
+
+        t1 = tcg_temp_local_new();
+        tcg_gen_mov_tl(t1, addr);
+
+        t0 = tcg_temp_new();
+        tcg_gen_shri_tl(t0, t1, TARGET_PAGE_BITS);
+        tcg_gen_brcondi_tl(TCG_COND_NE, t0, 0x200000 >> TARGET_PAGE_BITS, l1);
+        tcg_temp_free(t0);
+
+        assert(irix_prda_helpers_ld[memop] != NULL);
+        t3 = tcg_temp_new_i64();
+        (irix_prda_helpers_ld[memop])(t3, t1, cpu_env);
+        tcg_gen_extrl_i64_i32(t2, t3);
+        tcg_temp_free_i64(t3);
+        tcg_gen_br(l2);
+
+        gen_set_label(l1);
+        tcg_gen_qemu_ld_i32(t2, t1, idx, memop);
+
+        gen_set_label(l2);
+        tcg_gen_mov_tl(addr, t1);
+        tcg_gen_mov_i32(val, t2);
+        tcg_temp_free(t1);
+        tcg_temp_free_i32(t2);
+    } else
+        tcg_gen_qemu_ld_i32(val, addr, idx, memop);
+}
+static void tcg_gen_irix_ld_i64(TCGv_i64 val, TCGv addr, TCGArg idx, TCGMemOp memop)
+{
+    if (irix_emulate_prda) {
+        TCGv t0, t1;
+        TCGv_i64 t2 = tcg_temp_local_new_i64();
+        TCGLabel *l1 = gen_new_label();
+        TCGLabel *l2 = gen_new_label();
+
+        t1 = tcg_temp_local_new();
+        tcg_gen_mov_tl(t1, addr);
+
+        t0 = tcg_temp_new();
+        tcg_gen_shri_tl(t0, t1, TARGET_PAGE_BITS);
+        tcg_gen_brcondi_tl(TCG_COND_NE, t0, 0x200000 >> TARGET_PAGE_BITS, l1);
+        tcg_temp_free(t0);
+
+        assert(irix_prda_helpers_ld[memop] != NULL);
+        (irix_prda_helpers_ld[memop])(t2, t1, cpu_env);
+        tcg_gen_br(l2);
+
+        gen_set_label(l1);
+        tcg_gen_qemu_ld_i64(t2, t1, idx, memop);
+
+        gen_set_label(l2);
+        tcg_gen_mov_tl(addr, t1);
+        tcg_gen_mov_i64(val, t2);
+        tcg_temp_free(t1);
+        tcg_temp_free_i64(t2);
+    } else
+        tcg_gen_qemu_ld_i64(val, addr, idx, memop);
+}
+#define tcg_gen_qemu_ld_i32(v,a,i,m)    tcg_gen_irix_ld_i32(v,a,i,m)
+#define tcg_gen_qemu_ld_i64(v,a,i,m)    tcg_gen_irix_ld_i64(v,a,i,m)
+
+#undef tcg_gen_qemu_ld_tl
+#if TARGET_LONG_BITS == 32
+#define tcg_gen_qemu_ld_tl(v,a,i,m)     tcg_gen_irix_ld_i32(v,a,i,m)
+#else
+#define tcg_gen_qemu_ld_tl(v,a,i,m)     tcg_gen_irix_ld_i64(v,a,i,m)
+#endif
+
+static void tcg_gen_irix_st_i32(TCGv_i32 val, TCGv addr, TCGArg idx, TCGMemOp memop)
+{
+    if (irix_emulate_prda) {
+        TCGv t0, t1;
+        TCGv_i32 t2;
+        TCGv_i64 t3;
+        TCGLabel *l1 = gen_new_label();
+        TCGLabel *l2 = gen_new_label();
+
+        t1 = tcg_temp_local_new();
+        tcg_gen_mov_tl(t1, addr);
+        t2 = tcg_temp_local_new_i32();
+        tcg_gen_mov_i32(t2, val);
+
+        t0 = tcg_temp_new();
+        tcg_gen_shri_tl(t0, t1, TARGET_PAGE_BITS);
+        tcg_gen_brcondi_tl(TCG_COND_NE, t0, 0x200000 >> TARGET_PAGE_BITS, l1);
+        tcg_temp_free(t0);
+
+        assert(irix_prda_helpers_st[memop] != NULL);
+        t3 = tcg_temp_new_i64();
+        tcg_gen_extu_i32_i64(t3, t2);
+        (irix_prda_helpers_st[memop])(t3, t1, cpu_env);
+        tcg_temp_free_i64(t3);
+        tcg_gen_br(l2);
+
+        gen_set_label(l1);
+        tcg_gen_qemu_st_i32(t2, t1, idx, memop);
+
+        gen_set_label(l2);
+        tcg_temp_free(t1);
+        tcg_temp_free_i32(t2);
+    } else
+        tcg_gen_qemu_st_i32(val, addr, idx, memop);
+}
+static void tcg_gen_irix_st_i64(TCGv_i64 val, TCGv addr, TCGArg idx, TCGMemOp memop)
+{
+    if (irix_emulate_prda) {
+        TCGv t0, t1;
+        TCGv_i64 t2;
+        TCGLabel *l1 = gen_new_label();
+        TCGLabel *l2 = gen_new_label();
+
+        t1 = tcg_temp_local_new();
+        tcg_gen_mov_tl(t1, addr);
+        t2 = tcg_temp_local_new_i64();
+        tcg_gen_mov_i64(t2, val);
+
+        t0 = tcg_temp_new();
+        tcg_gen_shri_tl(t0, t1, TARGET_PAGE_BITS);
+        tcg_gen_brcondi_tl(TCG_COND_NE, t0, 0x200000 >> TARGET_PAGE_BITS, l1);
+        tcg_temp_free(t0);
+
+        assert(irix_prda_helpers_st[memop] != NULL);
+        (irix_prda_helpers_st[memop])(t2, t1, cpu_env);
+        tcg_gen_br(l2);
+
+        gen_set_label(l1);
+        tcg_gen_qemu_st_i64(t2, t1, idx, memop);
+
+        gen_set_label(l2);
+        tcg_temp_free(t1);
+        tcg_temp_free_i64(t2);
+    } else
+        tcg_gen_qemu_st_i64(val, addr, idx, memop);
+}
+#define tcg_gen_qemu_st_i32(v,a,i,m)    tcg_gen_irix_st_i32(v,a,i,m)
+#define tcg_gen_qemu_st_i64(v,a,i,m)    tcg_gen_irix_st_i64(v,a,i,m)
+
+#undef tcg_gen_qemu_st_tl
+#if TARGET_LONG_BITS == 32
+#define tcg_gen_qemu_st_tl(v,a,i,m)     tcg_gen_irix_st_i32(v,a,i,m)
+#else
+#define tcg_gen_qemu_st_tl(v,a,i,m)     tcg_gen_irix_st_i64(v,a,i,m)
+#endif
+#endif
+
 /* Load */
 static void gen_ld(DisasContext *ctx, uint32_t opc,
                    int rt, int base, int16_t offset)
@@ -2177,7 +2358,7 @@ static void gen_ld(DisasContext *ctx, uint32_t opc,
         gen_store_gpr(t0, rt);
         break;
     case OPC_LDL:
-        t1 = tcg_temp_new();
+        t1 = tcg_temp_local_new(); /*X*/
         /* Do a byte access to possibly trigger a page
            fault with the unaligned address.  */
         tcg_gen_qemu_ld_tl(t1, t0, mem_idx, MO_UB);
@@ -2199,7 +2380,7 @@ static void gen_ld(DisasContext *ctx, uint32_t opc,
         gen_store_gpr(t0, rt);
         break;
     case OPC_LDR:
-        t1 = tcg_temp_new();
+        t1 = tcg_temp_local_new(); /*X*/
         /* Do a byte access to possibly trigger a page
            fault with the unaligned address.  */
         tcg_gen_qemu_ld_tl(t1, t0, mem_idx, MO_UB);
@@ -2278,7 +2459,7 @@ static void gen_ld(DisasContext *ctx, uint32_t opc,
         mem_idx = MIPS_HFLAG_UM;
         /* fall through */
     case OPC_LWL:
-        t1 = tcg_temp_new();
+        t1 = tcg_temp_local_new(); /*X*/
         /* Do a byte access to possibly trigger a page
            fault with the unaligned address.  */
         tcg_gen_qemu_ld_tl(t1, t0, mem_idx, MO_UB);
@@ -2304,7 +2485,7 @@ static void gen_ld(DisasContext *ctx, uint32_t opc,
         mem_idx = MIPS_HFLAG_UM;
         /* fall through */
     case OPC_LWR:
-        t1 = tcg_temp_new();
+        t1 = tcg_temp_local_new(); /*X*/
         /* Do a byte access to possibly trigger a page
            fault with the unaligned address.  */
         tcg_gen_qemu_ld_tl(t1, t0, mem_idx, MO_UB);

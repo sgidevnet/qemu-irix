@@ -820,4 +820,9 @@ static inline bool tb_am_enabled(int tb_flags)
 #endif
 }
 
+/* main.c */
+void flush_windows(CPUSPARCState *env);
+
+#include "exec/exec-all.h"
+
 #endif

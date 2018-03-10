@@ -203,12 +203,21 @@ struct target_ip_mreq_source {
 };
 
 struct target_timeval {
+#if defined(TARGET_ABI_IRIX) && defined(TARGET_ABI_MIPSN64)
+    int      tv_pad1;
+    abi_int  tv_sec;
+#else
     abi_long tv_sec;
+#endif
     abi_long tv_usec;
 };
 
 struct target_timespec {
+#if defined(TARGET_ABI_IRIX) && defined(TARGET_ABI_MIPSN64)
+    abi_int  tv_sec;
+#else
     abi_long tv_sec;
+#endif
     abi_long tv_nsec;
 };
 
@@ -255,7 +264,11 @@ struct target_timex {
     abi_int:32; abi_int:32; abi_int:32;
 };
 
+#ifdef TARGET_ABI_IRIX
+typedef abi_int target_clock_t;
+#else
 typedef abi_long target_clock_t;
+#endif
 
 #define TARGET_HZ 100
 
@@ -267,8 +280,13 @@ struct target_tms {
 };
 
 struct target_utimbuf {
+#ifdef TARGET_ABI_IRIX
+    abi_int actime;
+    abi_int modtime;
+#else
     abi_long actime;
     abi_long modtime;
+#endif
 };
 
 struct target_sel_arg_struct {
@@ -286,9 +304,15 @@ struct target_msghdr {
     abi_long	 msg_name;	 /* Socket name			*/
     int		 msg_namelen;	 /* Length of name		*/
     abi_long	 msg_iov;	 /* Data blocks			*/
+#ifdef TARGET_ABI_IRIX
+    abi_int	 msg_iovlen;	 /* Number of blocks		*/
+    abi_long     msg_control;	 /* Per protocol magic (eg BSD file descriptor passing) */
+    abi_int	 msg_controllen; /* Length of cmsg list */
+#else
     abi_long	 msg_iovlen;	 /* Number of blocks		*/
     abi_long     msg_control;	 /* Per protocol magic (eg BSD file descriptor passing) */
     abi_long	 msg_controllen; /* Length of cmsg list */
+#endif
     unsigned int msg_flags;
 };
 
@@ -376,7 +400,9 @@ struct target_dirent64 {
 	uint64_t	d_ino;
 	int64_t		d_off;
 	unsigned short	d_reclen;
+#if !defined TARGET_ABI_IRIX && !defined TARGET_ABI_SOLARIS
 	unsigned char	d_type;
+#endif
 	char		d_name[256];
 };
 
@@ -386,24 +412,38 @@ struct target_dirent64 {
 #define TARGET_SIG_IGN	((abi_long)1)	/* ignore signal */
 #define TARGET_SIG_ERR	((abi_long)-1)	/* error return from signal */
 
-#ifdef TARGET_MIPS
+#if defined TARGET_MIPS || defined TARGET_ABI_SOLARIS
 #define TARGET_NSIG	   128
 #else
 #define TARGET_NSIG	   64
 #endif
+
+#if defined TARGET_ABI_IRIX || defined TARGET_ABI_SOLARIS
+#define TARGET_NSIG_BPW	   (8*sizeof(uint32_t))
+#define TARGET_NSIG_WORDS  (TARGET_NSIG / TARGET_NSIG_BPW)
+
+typedef struct {
+    uint32_t sig[TARGET_NSIG_WORDS];
+} target_sigset_t;
+#else
 #define TARGET_NSIG_BPW	   TARGET_ABI_BITS
 #define TARGET_NSIG_WORDS  (TARGET_NSIG / TARGET_NSIG_BPW)
 
 typedef struct {
     abi_ulong sig[TARGET_NSIG_WORDS];
 } target_sigset_t;
+#endif
 
 #ifdef BSWAP_NEEDED
 static inline void tswap_sigset(target_sigset_t *d, const target_sigset_t *s)
 {
     int i;
     for(i = 0;i < TARGET_NSIG_WORDS; i++)
+#if defined TARGET_ABI_IRIX || defined TARGET_ABI_SOLARIS
+        d->sig[i] = tswap32(s->sig[i]);
+#else
         d->sig[i] = tswapal(s->sig[i]);
+#endif
 }
 #else
 static inline void tswap_sigset(target_sigset_t *d, const target_sigset_t *s)
@@ -427,7 +467,7 @@ void host_to_target_old_sigset(abi_ulong *old_sigset,
 void target_to_host_old_sigset(sigset_t *sigset,
                                const abi_ulong *old_sigset);
 struct target_sigaction;
-int do_sigaction(int sig, const struct target_sigaction *act,
+int do_sigaction(CPUArchState *env, int sig, const struct target_sigaction *act,
                  struct target_sigaction *oact);
 
 #if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SPARC) \
@@ -438,7 +478,15 @@ int do_sigaction(int sig, const struct target_sigaction *act,
     || defined(TARGET_TILEGX) || defined(TARGET_HPPA) || defined(TARGET_NIOS2) \
     || defined(TARGET_RISCV)
 
-#if defined(TARGET_SPARC)
+#if defined(TARGET_ABI_IRIX) || defined(TARGET_ABI_SOLARIS)
+#define TARGET_SA_NOCLDSTOP    0x00020000
+#define TARGET_SA_NOCLDWAIT    0x00010000
+#define TARGET_SA_SIGINFO      0x00000008
+#define TARGET_SA_ONSTACK      0x00000001
+#define TARGET_SA_RESTART      0x00000004
+#define TARGET_SA_NODEFER      0x00000010
+#define TARGET_SA_RESETHAND    0x00000002
+#elif defined(TARGET_SPARC)
 #define TARGET_SA_NOCLDSTOP    8u
 #define TARGET_SA_NOCLDWAIT    0x100u
 #define TARGET_SA_SIGINFO      0x200u
@@ -536,47 +584,7 @@ int do_sigaction(int sig, const struct target_sigaction *act,
 #define TARGET_SIG_UNBLOCK       2
 #define TARGET_SIG_SETMASK       3
 
-#elif defined(TARGET_SPARC)
-
-#define TARGET_SIGHUP		 1
-#define TARGET_SIGINT		 2
-#define TARGET_SIGQUIT		 3
-#define TARGET_SIGILL		 4
-#define TARGET_SIGTRAP		 5
-#define TARGET_SIGABRT		 6
-#define TARGET_SIGIOT		 6
-#define TARGET_SIGSTKFLT	 7 /* actually EMT */
-#define TARGET_SIGFPE		 8
-#define TARGET_SIGKILL		 9
-#define TARGET_SIGBUS		10
-#define TARGET_SIGSEGV		11
-#define TARGET_SIGSYS		12
-#define TARGET_SIGPIPE		13
-#define TARGET_SIGALRM		14
-#define TARGET_SIGTERM		15
-#define TARGET_SIGURG		16
-#define TARGET_SIGSTOP		17
-#define TARGET_SIGTSTP		18
-#define TARGET_SIGCONT		19
-#define TARGET_SIGCHLD		20
-#define TARGET_SIGTTIN		21
-#define TARGET_SIGTTOU		22
-#define TARGET_SIGIO		23
-#define TARGET_SIGXCPU		24
-#define TARGET_SIGXFSZ		25
-#define TARGET_SIGVTALRM	26
-#define TARGET_SIGPROF		27
-#define TARGET_SIGWINCH	        28
-#define TARGET_SIGPWR		29
-#define TARGET_SIGUSR1		30
-#define TARGET_SIGUSR2		31
-#define TARGET_SIGRTMIN         32
-
-#define TARGET_SIG_BLOCK          0x01 /* for blocking signals */
-#define TARGET_SIG_UNBLOCK        0x02 /* for unblocking signals */
-#define TARGET_SIG_SETMASK        0x04 /* for setting the signal mask */
-
-#elif defined(TARGET_MIPS)
+#elif defined(TARGET_MIPS) || defined(TARGET_ABI_SOLARIS)
 
 #define TARGET_SIGHUP		 1	/* Hangup (POSIX).  */
 #define TARGET_SIGINT		 2	/* Interrupt (ANSI).  */
@@ -613,7 +621,11 @@ int do_sigaction(int sig, const struct target_sigaction *act,
 #define TARGET_SIGPROF		29	/* Profiling alarm clock (4.2 BSD).  */
 #define TARGET_SIGXCPU		30	/* CPU limit exceeded (4.2 BSD).  */
 #define TARGET_SIGXFSZ		31	/* File size limit exceeded (4.2 BSD).  */
+#ifdef TARGET_ABI_SOLARIS
+#define TARGET_SIGRTMIN         42
+#else
 #define TARGET_SIGRTMIN         32
+#endif
 
 #define TARGET_SIG_BLOCK	1	/* for blocking signals */
 #define TARGET_SIG_UNBLOCK	2	/* for unblocking signals */
@@ -658,6 +670,46 @@ int do_sigaction(int sig, const struct target_sigaction *act,
 #define TARGET_SIG_BLOCK       0
 #define TARGET_SIG_UNBLOCK     1
 #define TARGET_SIG_SETMASK     2
+
+#elif defined(TARGET_SPARC)
+
+#define TARGET_SIGHUP		 1
+#define TARGET_SIGINT		 2
+#define TARGET_SIGQUIT		 3
+#define TARGET_SIGILL		 4
+#define TARGET_SIGTRAP		 5
+#define TARGET_SIGABRT		 6
+#define TARGET_SIGIOT		 6
+#define TARGET_SIGSTKFLT	 7 /* actually EMT */
+#define TARGET_SIGFPE		 8
+#define TARGET_SIGKILL		 9
+#define TARGET_SIGBUS		10
+#define TARGET_SIGSEGV		11
+#define TARGET_SIGSYS		12
+#define TARGET_SIGPIPE		13
+#define TARGET_SIGALRM		14
+#define TARGET_SIGTERM		15
+#define TARGET_SIGURG		16
+#define TARGET_SIGSTOP		17
+#define TARGET_SIGTSTP		18
+#define TARGET_SIGCONT		19
+#define TARGET_SIGCHLD		20
+#define TARGET_SIGTTIN		21
+#define TARGET_SIGTTOU		22
+#define TARGET_SIGIO		23
+#define TARGET_SIGXCPU		24
+#define TARGET_SIGXFSZ		25
+#define TARGET_SIGVTALRM	26
+#define TARGET_SIGPROF		27
+#define TARGET_SIGWINCH	        28
+#define TARGET_SIGPWR		29
+#define TARGET_SIGUSR1		30
+#define TARGET_SIGUSR2		31
+#define TARGET_SIGRTMIN         32
+
+#define TARGET_SIG_BLOCK          0x01 /* for blocking signals */
+#define TARGET_SIG_UNBLOCK        0x02 /* for unblocking signals */
+#define TARGET_SIG_SETMASK        0x04 /* for setting the signal mask */
 
 #else
 
@@ -723,7 +775,7 @@ struct target_sigaction {
     target_sigset_t sa_mask;
     abi_ulong sa_restorer;
 };
-#elif defined(TARGET_MIPS)
+#elif defined(TARGET_MIPS) || defined(TARGET_ABI_SOLARIS)
 struct target_sigaction {
 	uint32_t	sa_flags;
 #if defined(TARGET_ABI_MIPSN32)
@@ -812,7 +864,7 @@ typedef struct {
 #define QEMU_SI_RT 5
 
 typedef struct target_siginfo {
-#ifdef TARGET_MIPS
+#if defined(TARGET_MIPS) || defined(TARGET_ABI_SOLARIS)
 	int si_signo;
 	int si_code;
 	int si_errno;
@@ -847,10 +899,17 @@ typedef struct target_siginfo {
 		/* SIGCHLD */
 		struct {
 			pid_t _pid;		/* which child */
+#if defined(TARGET_ABI_IRIX) || defined(TARGET_ABI_SOLARIS)
+			target_clock_t _utime;
+			int _status;		/* exit code */
+                        target_clock_t _stime;
+			int _swap;
+#else
 			uid_t _uid;		/* sender's uid */
 			int _status;		/* exit code */
 			target_clock_t _utime;
                         target_clock_t _stime;
+#endif
 		} _sigchld;
 
 		/* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
@@ -860,8 +919,13 @@ typedef struct target_siginfo {
 
 		/* SIGPOLL */
 		struct {
+#if defined(TARGET_ABI_IRIX) || defined(TARGET_ABI_SOLARIS)
+			int _fd;
+			abi_long _band;	/* POLL_IN, POLL_OUT, POLL_MSG */
+#else
 			int _band;	/* POLL_IN, POLL_OUT, POLL_MSG */
 			int _fd;
+#endif
 		} _sigpoll;
 	} _sifields;
 } target_siginfo_t;
@@ -944,11 +1008,13 @@ struct target_rlimit {
 #define TARGET_RLIM_INFINITY	0x7fffffffffffffffull
 #elif defined(TARGET_MIPS) || (defined(TARGET_SPARC) && TARGET_ABI_BITS == 32)
 #define TARGET_RLIM_INFINITY	0x7fffffffUL
+#define TARGET_RLIM64_INFINITY	0x7fffffffffffffffull
 #else
 #define TARGET_RLIM_INFINITY	((abi_ulong)-1)
+#define TARGET_RLIM64_INFINITY	((uint64_t)-1)
 #endif
 
-#if defined(TARGET_MIPS)
+#if defined(TARGET_MIPS) || defined(TARGET_ABI_SOLARIS)
 #define TARGET_RLIMIT_CPU		0
 #define TARGET_RLIMIT_FSIZE		1
 #define TARGET_RLIMIT_DATA		2
@@ -1007,6 +1073,10 @@ struct target_pollfd {
 #define TARGET_KDGETLED        0x4B31	/* return current led state */
 #define TARGET_KDSETLED        0x4B32	/* set led state [lights, not flags] */
 #define TARGET_KDSIGACCEPT     0x4B4E
+
+#ifdef TARGET_ABI_IRIX
+#define TARGET_SIOCNREAD       0x4004730a
+#endif
 
 #if defined(TARGET_ALPHA) || defined(TARGET_MIPS) || defined(TARGET_SH4)
 #define TARGET_SIOCATMARK      TARGET_IOR('s', 7, int)
@@ -1311,10 +1381,21 @@ struct target_pollfd {
 
 #define TARGET_NCC 8
 struct target_termio {
+#ifdef TARGET_ABI_IRIX
+	uint32_t c_iflag;		/* input mode flags */
+	uint32_t c_oflag;		/* output mode flags */
+	uint32_t c_cflag;		/* control mode flags */
+	uint32_t c_lflag;		/* local mode flags */
+#ifdef IRIX_NEW_TERMIO
+        uint32_t c_ospeed;
+        uint32_t c_ispeed;
+#endif
+#else
 	unsigned short c_iflag;		/* input mode flags */
 	unsigned short c_oflag;		/* output mode flags */
 	unsigned short c_cflag;		/* control mode flags */
 	unsigned short c_lflag;		/* local mode flags */
+#endif
 	unsigned char c_line;		/* line discipline */
 	unsigned char c_cc[TARGET_NCC];	/* control characters */
 };
@@ -1356,6 +1437,9 @@ struct target_winsize {
 #define TARGET_MAP_NONBLOCK	0x20000		/* do not block on IO */
 #define TARGET_MAP_STACK        0x40000         /* ignored */
 #define TARGET_MAP_HUGETLB      0x80000         /* create a huge page mapping */
+#ifdef TARGET_ABI_IRIX
+#define TARGET_MAP_AUTOGROW     0x40
+#endif
 #elif defined(TARGET_PPC)
 #define TARGET_MAP_FIXED	0x10		/* Interpret addr exactly */
 #define TARGET_MAP_ANONYMOUS	0x20		/* don't use a file */
@@ -1392,6 +1476,19 @@ struct target_winsize {
 #define TARGET_MAP_NONBLOCK	0x20000		/* do not block on IO */
 #define TARGET_MAP_STACK        0x40000         /* ignored */
 #define TARGET_MAP_HUGETLB      0x80000         /* create a huge page mapping */
+#elif defined TARGET_ABI_SOLARIS
+#define TARGET_MAP_FIXED	0x10		/* Interpret addr exactly */
+#define TARGET_MAP_ANONYMOUS	0x0100		/* don't use a file */
+#define TARGET_MAP_GROWSDOWN	0		/* stack-like segment */
+#define TARGET_MAP_DENYWRITE	0		/* ETXTBSY */
+#define TARGET_MAP_EXECUTABLE	0x0400		/* mark it as an executable */
+#define TARGET_MAP_LOCKED	0		/* pages are locked */
+#define TARGET_MAP_NORESERVE	0x0040		/* don't check for reservations */
+#define TARGET_MAP_POPULATE	0		/* populate (prefault) pagetables */
+#define TARGET_MAP_NONBLOCK	0		/* do not block on IO */
+#define TARGET_MAP_UNINITIALIZED 0		/* for anonymous mmap, memory could be uninitialized */
+#define TARGET_MAP_STACK        0               /* ignored */
+#define TARGET_MAP_HUGETLB      0               /* create a huge page mapping */
 #else
 #define TARGET_MAP_FIXED	0x10		/* Interpret addr exactly */
 #define TARGET_MAP_ANONYMOUS	0x20		/* don't use a file */
@@ -1504,6 +1601,56 @@ struct target_eabi_stat64 {
 } QEMU_PACKED;
 #endif
 
+#elif defined(TARGET_ABI_SOLARIS)
+
+struct target_stat {
+	abi_ulong	st_dev;
+	abi_long	st_pad1[3];
+	abi_ulong	st_ino;
+	abi_uint	st_mode;
+	abi_uint	st_nlink;
+	abi_int		st_uid;
+	abi_int		st_gid;
+	abi_ulong	st_rdev;
+	abi_long	st_pad2[2];
+	abi_long	st_size;
+        abi_long	st_pad3;
+	abi_long	target_st_atime;
+	abi_ulong	__unused1;
+	abi_long	target_st_mtime;
+	abi_ulong	__unused2;
+	abi_long	target_st_ctime;
+	abi_ulong	__unused3;
+	abi_int		st_blksize;
+	int64_t		st_blocks;
+	char		st_fstype[16];
+	abi_long	__unused4[8];
+};
+
+#define TARGET_HAS_STRUCT_STAT64
+struct target_stat64 {
+	abi_ulong	st_dev;
+	abi_long	st_pad1[3];
+	uint64_t	st_ino;
+	abi_uint	st_mode;
+	abi_uint	st_nlink;
+	abi_int		st_uid;
+	abi_int		st_gid;
+	abi_ulong	st_rdev;
+	abi_long	st_pad2[2];
+	int64_t		st_size;
+	abi_long	target_st_atime;
+	abi_ulong	__unused1;
+	abi_long	target_st_mtime;
+	abi_ulong	__unused2;
+	abi_long	target_st_ctime;
+	abi_ulong	__unused3;
+	abi_int		st_blksize;
+	int64_t		st_blocks;
+	char		st_fstype[16];
+	abi_long	__unused4[8];
+};
+
 #elif defined(TARGET_SPARC64) && !defined(TARGET_ABI32)
 struct target_stat {
 	unsigned int	st_dev;
@@ -1583,7 +1730,7 @@ struct target_stat64 {
 	unsigned char	__pad0[6];
 	unsigned short	st_dev;
 
-	uint64_t st_ino;
+	uint64_t	st_ino;
 
 	unsigned int	st_mode;
 	unsigned int	st_nlink;
@@ -1597,6 +1744,7 @@ struct target_stat64 {
 	unsigned char	__pad3[8];
 
         int64_t	st_size;
+
 	unsigned int	st_blksize;
 
 	unsigned char	__pad4[8];
@@ -1787,13 +1935,87 @@ struct target_stat64 {
 	unsigned long long	st_ino;
 } QEMU_PACKED;
 
+#elif defined (TARGET_ABI_IRIX)
+
+struct target_stat {
+	uint32_t		st_dev;
+	abi_long		st_pad0[3]; /* Reserved for st_dev expansion */
+	abi_ulong		st_ino;
+
+	uint32_t		st_mode;
+	uint32_t		st_nlink;
+
+	int32_t			st_uid;
+	int32_t			st_gid;
+
+	uint32_t		st_rdev;
+	abi_long		st_pad1[2]; /* Reserved for st_rdev expansion */
+	abi_long		st_size;
+        abi_long                st_pad2;
+
+	/*
+	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
+	 * but we don't have it under Linux.
+	 */
+	int32_t			target_st_atime;
+        abi_long                target_st_atime_nsec;
+
+	int32_t			target_st_mtime;
+        abi_long                target_st_mtime_nsec;
+
+	int32_t			target_st_ctime;
+        abi_long                target_st_ctime_nsec;
+
+        abi_long                st_blksize;
+	abi_long		st_blocks;
+	char			st_fstype[16];
+	abi_long		st_projid;
+	abi_long		st_pad[7];
+};
+
+#define TARGET_HAS_STRUCT_STAT64
+struct target_stat64 {
+	uint32_t		st_dev;
+	abi_long		st_pad0[3]; /* Reserved for st_dev expansion */
+	uint64_t		st_ino;
+
+	uint32_t		st_mode;
+	uint32_t		st_nlink;
+
+	int32_t			st_uid;
+	int32_t			st_gid;
+
+	uint32_t		st_rdev;
+	abi_long		st_pad1[2]; /* Reserved for st_rdev expansion */
+	int64_t			st_size;
+        abi_long                st_pad2;
+
+	/*
+	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
+	 * but we don't have it under Linux.
+	 */
+	int32_t			target_st_atime;
+        abi_long                target_st_atime_nsec;
+
+	int32_t			target_st_mtime;
+        abi_long                target_st_mtime_nsec;
+
+	int32_t			target_st_ctime;
+        abi_long                target_st_ctime_nsec;
+
+        abi_long                st_blksize;
+	int64_t			st_blocks;
+	char			st_fstype[16];
+	abi_long		st_projid;
+	abi_long		st_pad[7];
+};
+
 #elif defined(TARGET_ABI_MIPSN64)
 
 /* The memory layout is the same as of struct stat64 of the 32-bit kernel.  */
 struct target_stat {
 	unsigned int		st_dev;
 	unsigned int		st_pad0[3]; /* Reserved for st_dev expansion */
-
 	abi_ulong		st_ino;
 
 	unsigned int		st_mode;
@@ -1804,7 +2026,6 @@ struct target_stat {
 
 	unsigned int		st_rdev;
 	unsigned int		st_pad1[3]; /* Reserved for st_rdev expansion */
-
 	abi_ulong		st_size;
 
 	/*
@@ -1822,32 +2043,80 @@ struct target_stat {
 
 	unsigned int		st_blksize;
 	unsigned int		st_pad2;
-
 	abi_ulong		st_blocks;
 };
 
 #elif defined(TARGET_ABI_MIPSN32)
 
 struct target_stat {
-        abi_ulong    st_dev;
-        abi_ulong    st_pad0[3]; /* Reserved for st_dev expansion */
-        uint64_t     st_ino;
-        unsigned int st_mode;
-        unsigned int st_nlink;
-        int          st_uid;
-        int          st_gid;
-        abi_ulong    st_rdev;
-        abi_ulong    st_pad1[3]; /* Reserved for st_rdev expansion */
-        int64_t      st_size;
-        abi_long     target_st_atime;
-        abi_ulong    target_st_atime_nsec; /* Reserved for st_atime expansion */
-        abi_long     target_st_mtime;
-        abi_ulong    target_st_mtime_nsec; /* Reserved for st_mtime expansion */
-        abi_long     target_st_ctime;
-        abi_ulong    target_st_ctime_nsec; /* Reserved for st_ctime expansion */
-        abi_ulong    st_blksize;
-        abi_ulong    st_pad2;
-        int64_t      st_blocks;
+	unsigned	st_dev;
+	int		st_pad0[3];		/* Reserved for network id */
+	unsigned int	st_ino;
+	unsigned int	st_mode;
+	unsigned int	st_nlink;
+	int		st_uid;
+	int		st_gid;
+	unsigned 	st_rdev;
+	unsigned int	st_pad1[2];
+	unsigned int	st_size;
+	unsigned int	st_pad2;
+	/*
+	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
+	 * but we don't have it under Linux.
+	 */
+	unsigned int		target_st_atime;
+	unsigned int		target_st_atime_nsec;
+	unsigned int		target_st_mtime;
+	unsigned int		target_st_mtime_nsec;
+	unsigned int		target_st_ctime;
+	unsigned int		target_st_ctime_nsec;
+	unsigned int		st_blksize;
+	unsigned int		st_blocks;
+	unsigned int		st_pad3[14];
+};
+
+/*
+ * This matches struct stat64 in glibc2.1, hence the absolutely insane
+ * amounts of padding around dev_t's.  The memory layout is the same as of
+ * struct stat of the 64-bit kernel.
+ */
+
+#define TARGET_HAS_STRUCT_STAT64
+struct target_stat64 {
+	unsigned int	st_dev;
+	unsigned int	st_pad0[3];	/* Reserved for st_dev expansion  */
+
+	uint64_t	st_ino;
+
+        unsigned int	st_mode;
+        unsigned int	st_nlink;
+
+	int		st_uid;
+	int		st_gid;
+
+	unsigned int	st_rdev;
+
+	unsigned int	st_pad1[3];	/* Reserved for st_rdev expansion  */
+
+	int		st_size;
+
+	/*
+	 * Actually this should be timestruc_t st_atime, st_mtime and st_ctime
+	 * but we don't have it under Linux.
+	 */
+	int		target_st_atime;
+	unsigned int	target_st_atime_nsec;	/* Reserved for st_atime expansion  */
+
+	int		target_st_mtime;
+	unsigned int	target_st_mtime_nsec;	/* Reserved for st_mtime expansion  */
+
+	int		target_st_ctime;
+	unsigned int	target_st_ctime_nsec;	/* Reserved for st_ctime expansion  */
+
+	unsigned int	st_blksize;
+
+	int		st_blocks;
+	unsigned int	st_pad2;
 };
 
 #elif defined(TARGET_ABI_MIPSO32)
@@ -2214,7 +2483,11 @@ typedef struct {
 #ifdef TARGET_MIPS
 #ifdef TARGET_ABI_MIPSN32
 struct target_statfs {
+#ifdef TARGET_ABI_IRIX
+	short			f_type;
+#else
 	int32_t			f_type;
+#endif
 	int32_t			f_bsize;
 	int32_t			f_frsize;	/* Fragment size - unsupported */
 	int32_t			f_blocks;
@@ -2230,7 +2503,11 @@ struct target_statfs {
 };
 #else
 struct target_statfs {
+#ifdef TARGET_ABI_IRIX
+	short			f_type;
+#else
 	abi_long		f_type;
+#endif
 	abi_long		f_bsize;
 	abi_long		f_frsize;	/* Fragment size - unsupported */
 	abi_long		f_blocks;
@@ -2247,10 +2524,18 @@ struct target_statfs {
 #endif
 
 struct target_statfs64 {
+#ifdef TARGET_ABI_IRIX
+	short		f_type;
+	short		__pad1;
+	uint32_t	f_bsize;
+	uint32_t	f_frsize;	/* Fragment size - unsupported */
+        uint32_t        __pad2;
+#else
 	uint32_t	f_type;
 	uint32_t	f_bsize;
 	uint32_t	f_frsize;	/* Fragment size - unsupported */
 	uint32_t	__pad;
+#endif
 	uint64_t	f_blocks;
 	uint64_t	f_bfree;
 	uint64_t	f_files;
@@ -2361,12 +2646,45 @@ struct target_statfs64 {
 #define TARGET_F_SETLKW        9
 #define TARGET_F_SETOWN        5       /*  for sockets. */
 #define TARGET_F_GETOWN        6       /*  for sockets. */
+#define TARGET_F_SETOWN_EX     15
+#define TARGET_F_GETOWN_EX     16
+#define TARGET_F_SETSIG        10      /*  for sockets. */
+#define TARGET_F_GETSIG        11      /*  for sockets. */
 
 #define TARGET_F_RDLCK         1
 #define TARGET_F_WRLCK         2
 #define TARGET_F_UNLCK         8
 #define TARGET_F_EXLCK         16
 #define TARGET_F_SHLCK         32
+#elif defined(TARGET_ABI_IRIX)
+#define TARGET_F_GETLK         14
+#define TARGET_F_SETLK         6
+#define TARGET_F_SETLKW        7
+#define TARGET_F_SETOWN        23      /*  for sockets. */
+#define TARGET_F_GETOWN        24      /*  for sockets. */
+#define TARGET_F_ALLOCSP       10
+#define TARGET_F_FREESP        11
+#define TARGET_F_ALLOCSP64     36
+#define TARGET_F_FREESP64      37
+
+#define TARGET_F_RDLCK         1
+#define TARGET_F_WRLCK         2
+#define TARGET_F_UNLCK         3
+#elif defined(TARGET_ABI_SOLARIS)
+#define TARGET_F_GETLK         14
+#define TARGET_F_SETLK         6
+#define TARGET_F_SETLKW        7
+#define TARGET_F_SETOWN        23      /*  for sockets. */
+#define TARGET_F_GETOWN        24      /*  for sockets. */
+#define TARGET_F_ALLOCSP       10
+#define TARGET_F_FREESP        11
+#define TARGET_F_ALLOCSP64     28
+#define TARGET_F_FREESP64      27
+#define TARGET_F_DUP2FD        9
+
+#define TARGET_F_RDLCK         1
+#define TARGET_F_WRLCK         2
+#define TARGET_F_UNLCK         3
 #elif defined(TARGET_MIPS)
 #define TARGET_F_GETLK         14
 #define TARGET_F_SETLK         6
@@ -2388,9 +2706,12 @@ struct target_statfs64 {
 #define TARGET_F_SETLKW        7
 #define TARGET_F_SETOWN        8       /*  for sockets. */
 #define TARGET_F_GETOWN        9       /*  for sockets. */
-#endif
 #define TARGET_F_SETOWN_EX     15
 #define TARGET_F_GETOWN_EX     16
+#define TARGET_F_SETSIG        10      /*  for sockets. */
+#define TARGET_F_GETSIG        11      /*  for sockets. */
+#endif
+
 
 #ifndef TARGET_F_RDLCK
 #define TARGET_F_RDLCK         0
@@ -2412,7 +2733,7 @@ struct target_statfs64 {
 #define TARGET_F_GETSIG        11      /*  for sockets. */
 #endif
 
-#if defined(TARGET_MIPS)
+#if defined(TARGET_MIPS) || defined(TARGET_ABI_SOLARIS)
 #define TARGET_F_GETLK64       33      /*  using 'struct flock64' */
 #define TARGET_F_SETLK64       34
 #define TARGET_F_SETLKW64      35
@@ -2486,6 +2807,23 @@ struct target_statfs64 {
 #define TARGET_O_NOFOLLOW      0100000 /* don't follow links */
 #define TARGET_O_LARGEFILE     0200000
 #define TARGET_O_DIRECT        0400000 /* direct disk access hint */
+#elif defined (TARGET_ABI_SOLARIS)
+#define TARGET_O_APPEND         0x0008
+#define TARGET_O_CREAT          0x0100  /* not fcntl */
+#define TARGET_O_NDELAY         0x0004
+#define TARGET_O_NONBLOCK       0x0080
+#define TARGET_O_LARGEFILE      0x2000
+#define TARGET_O_DSYNC          0x0040
+#define TARGET_O_TRUNC          0x0200  /* not fcntl */
+#define TARGET_O_EXCL           0x0400  /* not fcntl */
+#define TARGET_O_NOCTTY         0x0800  /* not fcntl */
+#define TARGET_O_CLOEXEC      0x800000
+#define TARGET___O_SYNC         0x0010
+#define TARGET_O_NOFOLLOW      0x20000
+#define TARGET_FASYNC                0
+#define TARGET_O_DIRECT              0
+#define TARGET_O_NOATIME             0
+#define TARGET_O_PATH                0
 #elif defined (TARGET_SPARC)
 #define TARGET_O_APPEND         0x0008
 #define TARGET_FASYNC           0x0040  /* fcntl, for BSD compatibility */
@@ -2579,11 +2917,13 @@ struct target_flock {
     short l_whence;
     abi_long l_start;
     abi_long l_len;
-#if defined(TARGET_MIPS)
+#if defined(TARGET_MIPS) || defined(TARGET_ABI_IRIX)
     abi_long l_sysid;
+#elif defined(TARGET_ABI_SOLARIS)
+    abi_int l_sysid;
 #endif
     int l_pid;
-#if defined(TARGET_MIPS)
+#if defined TARGET_MIPS || defined TARGET_ABI_IRIX || defined TARGET_ABI_SOLARIS
     abi_long pad[4];
 #endif
 };
@@ -2598,6 +2938,11 @@ struct target_flock64 {
 #endif
     abi_llong l_start;
     abi_llong l_len;
+#if defined(TARGET_MIPS) || defined(TARGET_ABI_IRIX)
+    abi_long l_sysid;
+#elif defined(TARGET_ABI_SOLARIS)
+    abi_int l_sysid;
+#endif
     int  l_pid;
 } QEMU_PACKED;
 
@@ -2898,9 +3243,18 @@ typedef int32_t target_timer_t;
                                / sizeof(int32_t))
 
 struct target_sigevent {
+#ifdef TARGET_ABI_IRIX
+    int sigev_notify;
+    struct {
+        int sigev_signo;
+        abi_ulong sigev_nifunc;
+    };
+    target_sigval_t sigev_value;
+#else
     target_sigval_t sigev_value;
     abi_int sigev_signo;
     abi_int sigev_notify;
+#endif
     union {
         abi_int _pad[TARGET_SIGEV_PAD_SIZE];
         abi_int _tid;
@@ -2951,5 +3305,169 @@ struct target_user_cap_data {
 #define TARGET_SYSLOG_ACTION_SIZE_UNREAD    9
 /* Return size of the log buffer */
 #define TARGET_SYSLOG_ACTION_SIZE_BUFFER   10
+
+#if defined TARGET_ABI_IRIX || defined TARGET_ABI_SOLARIS
+struct target_statvfs {
+        abi_ulong f_bsize;        /* fundamental file system block size */
+        abi_ulong f_frsize;       /* fragment size */
+        abi_ulong f_blocks;    /* total # of blocks of f_frsize on fs */
+        abi_ulong f_bfree;     /* total # of free blocks of f_frsize */
+        abi_ulong f_bavail;    /* # of free blocks avail to non-superuser */
+        abi_ulong f_files;     /* total # of file nodes (inodes) */
+        abi_ulong f_ffree;     /* total # of free file nodes */
+        abi_ulong f_favail;    /* # of free nodes avail to non-superuser */
+        abi_ulong f_fsid;         /* file system id (dev for now) */
+        uint32_t f_pad0[4];
+        abi_ulong f_flag;         /* bit-mask of flags */
+        abi_ulong f_namemax;      /* maximum file name length */
+        uint32_t f_pad1[24];   /* reserved for future expansion */
+};
+
+struct target_statvfs64 {
+        abi_ulong f_bsize;        /* fundamental file system block size */
+        abi_ulong f_frsize;       /* fragment size */
+        uint64_t f_blocks;    /* total # of blocks of f_frsize on fs */
+        uint64_t f_bfree;     /* total # of free blocks of f_frsize */
+        uint64_t f_bavail;    /* # of free blocks avail to non-superuser */
+        uint64_t f_files;     /* total # of file nodes (inodes) */
+        uint64_t f_ffree;     /* total # of free file nodes */
+        uint64_t f_favail;    /* # of free nodes avail to non-superuser */
+        abi_ulong f_fsid;         /* file system id (dev for now) */
+        uint32_t f_pad0[4];
+        abi_ulong f_flag;         /* bit-mask of flags */
+        abi_ulong f_namemax;      /* maximum file name length */
+        uint32_t f_pad1[24];   /* reserved for future expansion */
+};
+
+struct target_utsname {
+        char    sysname[257];
+        char    nodename[257];
+        char    release[257];
+        char    version[257];
+        char    machine[257];
+#ifdef TARGET_ABI_IRIX
+        char    reserved[257][8];
+#endif
+};
+
+#define TARGET_P_PID        0
+#define TARGET_P_PGID       2
+#define TARGET_P_ALL        7
+
+/* wait flags */
+#define TARGET_WEXITED      0001
+#define TARGET_WSTOPPED     0004
+#define TARGET_WCONTINUED   0010
+#define TARGET_WNOHANG      0100
+#define TARGET_WNOWAIT      0200
+
+#define TARGET_STAT64_VER   3
+
+/* common sem/shm/msg definitions */
+#define	TARGET_IPC_RMID     10
+#define	TARGET_IPC_SET      11
+#define	TARGET_IPC_STAT     12
+
+#define TARGET_IPC_CREAT    0001000
+#define TARGET_IPC_EXCL     0002000
+#define TARGET_IPC_NOWAIT   0004000
+
+/* sem function definitions */
+#define TARGET_SEM_GETNCNT  3
+#define TARGET_SEM_GETPID   4
+#define TARGET_SEM_GETVAL   5
+#define TARGET_SEM_GETALL   6
+#define TARGET_SEM_GETZCNT  7
+#define TARGET_SEM_SETVAL   8
+#define TARGET_SEM_SETALL   9
+
+/* shm function definitions */
+#define TARGET_SHM_LOCK     3
+#define TARGET_SHM_UNLOCK   4
+
+#define TARGET_SHM_RDONLY   010000
+#define TARGET_SHM_RND      020000
+
+/* msg function definitions */
+#define TARGET_MSG_NOERROR  010000
+#endif
+
+#ifdef TARGET_ABI_IRIX
+/* usync interface - undocumented by SGI, so there's some guesswork :-( */
+struct target_usync {
+        abi_int         u_magic;     /* 1002 in all cases? */
+        uint64_t        u_sync;      /* pointer to sync object */
+        uint16_t        u_type;      /* type of sync object? Either 1 or 2 */
+        uint16_t        u_flags;     /* e.g. timeout flag for timed wait */
+        abi_int         u_unknown1[4]; /* some signal stuff? */
+        uint64_t        u_lock;      /* pointer to mutex for cond_wait */
+        uint64_t        u_sec;       /* timeout for cond_wait, tv_sec */
+        uint64_t        u_nsec;      /* timeout for cond_wait, tv_nsec */
+        abi_int         u_unknown2[6];
+};
+
+#define TARGET_US_TIMEOUT   0x00000004
+
+/* nsproc interface - structure from sys/prctl.h */
+struct target_prthread {
+#ifdef TARGET_ABI_MIPSN32
+	abi_uint	prt_entry;
+	abi_uint	prt_arg;
+	abi_uint	prt_flags;
+	abi_uint	prt_stkptr;
+#else
+	abi_ulong	prt_entry;
+	abi_ulong	prt_arg;
+	abi_uint	prt_flags;
+	abi_ulong	prt_stkptr;
+#endif
+	abi_int		prt_stklen;
+};
+
+/* sproc flags */
+#define TARGET_PR_SPROC     0x00000001
+#define TARGET_PR_SFDS      0x00000002
+#define TARGET_PR_SDIR      0x00000004
+#define TARGET_PR_SADDR     0x00000040
+#define TARGET_PR_SALL      0x0000007f
+#define TARGET_PR_BLOCK     0x01000000
+#endif
+
+#ifdef TARGET_ABI_SOLARIS
+#define TARGET_E_OK                 8
+
+#define TARGET_PC_LINK_MAX          1
+#define TARGET_PC_MAX_CANON         2
+#define TARGET_PC_MAX_INPUT         3
+#define TARGET_PC_NAME_MAX          4
+#define TARGET_PC_PATH_MAX          5
+#define TARGET_PC_PIPE_BUF          6
+#define TARGET_PC_NO_TRUNC          7
+#define TARGET_PC_VDISABLE          8
+#define TARGET_PC_CHOWN_RESTRICTED  9
+#define TARGET_PC_ASYNC_IO          10
+#define TARGET_PC_PRIO_IO           11
+#define TARGET_PC_SYNC_IO           12
+#define TARGET_PC_ALLOC_SIZE_MIN    13
+#define TARGET_PC_REC_INCR_XFER_SIZE 14
+#define TARGET_PC_REC_MAX_XFER_SIZE 15
+#define TARGET_PC_REC_MIN_XFER_SIZE 16
+#define TARGET_PC_REC_XFER_ALIGN    17
+#define TARGET_PC_SYMLINK_MAX       18
+#define TARGET_PC_2_SYMLINKS        19
+#else
+#define TARGET_PC_LINK_MAX          1
+#define TARGET_PC_MAX_CANON         2
+#define TARGET_PC_MAX_INPUT         3
+#define TARGET_PC_NAME_MAX          4
+#define TARGET_PC_PATH_MAX          5
+#define TARGET_PC_PIPE_BUF          6
+#define TARGET_PC_NO_TRUNC          8
+#define TARGET_PC_VDISABLE          9
+#define TARGET_PC_CHOWN_RESTRICTED  7
+#define TARGET_PC_ASYNC_IO          64
+#define TARGET_PC_PRIO_IO           11
+#define TARGET_PC_SYNC_IO           10
+#endif
 
 #endif
