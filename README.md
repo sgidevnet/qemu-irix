@@ -45,5 +45,4 @@ As a rather simple test, try:
 <target rootfs>/bin/ls
 ```
 
-send bug reports, fixes etc to <derkub@gmail.com>
-Kai-Uwe Bloem
+send bug reports, fixes etc to Kai-Uwe Bloem  (<derkub@gmail.com>)
