@@ -32,7 +32,7 @@ main(int argc, char *argv[])
 
     setenv("QEMU_RESERVED_VA", "2048M", 0);
     setenv("QEMU_SET_ENV", "LANG=C", 0);
-    setenv("QEMU_IRIXPRDA", "1", 0);
+    //setenv("QEMU_IRIXPRDA", "1", 0);
 
     // are we outside the IRIX chroot?
     struct stat st;
