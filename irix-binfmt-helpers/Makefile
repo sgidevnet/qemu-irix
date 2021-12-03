@@ -6,5 +6,5 @@ qemu-irix-wrapper: qemu-irix-wrapper.c Makefile
 	ln -sf qemu-irix-wrapper qemu-irix64-wrapper
 
 install: qemu-irix-wrapper
-	cp -a qemu-irix-binfmt qemu-irix-wrapper qemu-irixn32-wrapper qemu-irix64-wrapper $PREFIX/bin
+	cp -a qemu-irix-binfmt qemu-irix-wrapper qemu-irixn32-wrapper qemu-irix64-wrapper $(PREFIX)/bin
 

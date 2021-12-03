@@ -12,6 +12,8 @@ main(int argc, char *argv[])
     char cmd[256];
     char *p;
 
+    FILE *log = 0;
+
     if (argc < 2) {
         fprintf(stderr, "qemu-irix-wrapper: missing exe and argv0\n");
         exit(1);
@@ -35,9 +37,14 @@ main(int argc, char *argv[])
     // are we outside the IRIX chroot?
     struct stat st;
     if (stat("/lib32/rld", &st) != 0) {
+        // outside the irix root
         const char* irixroot = getenv("IRIXROOT");
         if (irixroot)
             setenv("QEMU_LD_PREFIX", irixroot, 0);
+        //log = fopen("/opt/irix/root/tmp/QLOG", "a");
+    } else {
+        // inside
+        //log = fopen("/tmp/QLOG", "a");
     }
 
     char* exe = argv[1];
@@ -52,6 +59,15 @@ main(int argc, char *argv[])
         newargv[i+1] = argv[i];
     }
     newargv[argc+1] = NULL;
+
+    if (log) {
+        fprintf(log, "execv: '%s' argv: ", cmd);
+        for (int i = 0; i < argc+1; i++) {
+            fprintf(log, "'%s' ", newargv[i]);
+        }
+        fputs("\n", log);
+        fclose(log);
+    }
 
     execv(cmd, newargv);
 }
