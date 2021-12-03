@@ -4885,9 +4885,9 @@ int main(int argc, char **argv, char **envp)
         for (int i = 0; i < argc; i++) {
             printf("%d: %s\n", i, argv[i]);
         }
-        _exit(EXIT_FAILURE);
+        //_exit(EXIT_FAILURE);
         #endif
-        execv(argv[3], argv + 3);
+        execv(argv[optind], argv + optind);
     }
 
     if (cpu_model == NULL) {
