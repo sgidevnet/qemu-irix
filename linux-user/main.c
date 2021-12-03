@@ -48,6 +48,7 @@ static const char *cpu_model;
 unsigned long mmap_min_addr;
 unsigned long guest_base;
 int have_guest_base;
+int g_loud_syscalls = 0;
 
 #define EXCP_DUMP(env, fmt, ...)                                        \
 do {                                                                    \
@@ -4870,24 +4871,30 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    char shbang_chars[2];
-    int is_shbang = 0;
-    if (read(execfd, shbang_chars, 2) == 2) {
-        if (shbang_chars[0] == '#' && shbang_chars[1] == '!') {
-            is_shbang = 1;
+    {
+        char rbuf[64];
+        int exec_directly = 0;
+        int nread = read(execfd, rbuf, 64);
+        if (nread >= 2 && rbuf[0] == '#' && rbuf[1] == '!') {
+            exec_directly = 1;
+        } else if (nread >= 20 && rbuf[1] == 'E' && rbuf[2] == 'L' && rbuf[3] == 'F') {
+            //printf("ELF @ 19 0x%02x\n", rbuf[19]);
+            if (rbuf[19] != 0x08) // not MIPS elf?
+                exec_directly = 1;
         }
-    }
 
-    if (is_shbang) {
-        // we got here because a child process is doing an exec() and we got pulled in.
-        #if false
-        printf("SHBANG\n");
-        for (int i = 0; i < argc; i++) {
-            printf("%d: %s\n", i, argv[i]);
+        if (exec_directly) {
+            // we got here because a child process is doing an exec() and we got pulled in.
+            #if false
+            printf("SHBANG\n");
+            for (int i = 0; i < argc; i++) {
+                printf("%d: %s\n", i, argv[i]);
+            }
+            //_exit(EXIT_FAILURE);
+            #endif
+            int err = execv(argv[optind], argv + optind);
+            printf("exec %d\n", err);
         }
-        //_exit(EXIT_FAILURE);
-        #endif
-        execv(argv[optind], argv + optind);
     }
 
     if (cpu_model == NULL) {
@@ -4908,6 +4915,10 @@ int main(int argc, char **argv, char **envp)
 
     if (getenv("QEMU_RAND_SEED")) {
         handle_arg_randseed(getenv("QEMU_RAND_SEED"));
+    }
+
+    if (getenv("QEMU_LOUD_SYSCALLS")) {
+        g_loud_syscalls = 1;
     }
 
     target_environ = envlist_to_environ(envlist, NULL);

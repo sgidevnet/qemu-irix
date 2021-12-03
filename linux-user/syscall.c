@@ -125,6 +125,8 @@
 #define CLONE_IO                0x80000000      /* Clone io context */
 #endif
 
+extern int g_loud_syscalls;
+
 /* We can't directly call the host clone syscall, because this will
  * badly confuse libc (breaking mutexes, for example). So we must
  * divide clone flags into:
@@ -1871,7 +1873,7 @@ static inline abi_long target_to_host_cmsg(struct msghdr *msgh,
             __get_user(cred->uid, &target_cred->uid);
             __get_user(cred->gid, &target_cred->gid);
         } else {
-            gemu_log("Unsupported ancillary data: %d/%d\n",
+            if (g_loud_syscalls) gemu_log("Unsupported ancillary data: %d/%d\n",
                                         cmsg->cmsg_level, cmsg->cmsg_type);
             memcpy(data, target_data, len);
         }
@@ -2092,7 +2094,7 @@ static inline abi_long host_to_target_cmsg(struct target_msghdr *target_msgh,
 
         default:
         unimplemented:
-            gemu_log("Unsupported ancillary data: %d/%d\n",
+            if (g_loud_syscalls) gemu_log("Unsupported ancillary data: %d/%d\n",
                                         cmsg->cmsg_level, cmsg->cmsg_type);
             memcpy(target_data, data, MIN(len, tgt_len));
             if (tgt_len > len) {
@@ -14003,6 +14005,9 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #ifdef TARGET_NR_sysconfig
     case TARGET_NR_sysconfig:
         switch (arg1) {
+        case TARGET_NR_sysconf_argmax:
+            ret = get_errno(sysconf(_SC_ARG_MAX));
+            break;
         case TARGET_NR_sysconf_childmax:
             ret = get_errno(sysconf(_SC_CHILD_MAX));
             break;
@@ -14388,7 +14393,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             }
             break;
         default:
-            gemu_log("qemu: Unsupported syscall: sgiprctl(%d)\n", (int)arg1);
+            if (g_loud_syscalls) gemu_log("qemu: Unsupported syscall: sgiprctl(%d)\n", (int)arg1);
             ret = -TARGET_ENOSYS;
             break;
         }
@@ -14523,6 +14528,9 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             break;
         case TARGET_NR_syssgi_sysconf:
             switch (arg2) {
+            case TARGET_NR_sysconf_argmax:
+                ret = get_errno(sysconf(_SC_ARG_MAX));
+                break;
             case TARGET_NR_sysconf_childmax:
                 ret = get_errno(sysconf(_SC_CHILD_MAX));
                 break;
@@ -14550,6 +14558,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             }
             break;
         case TARGET_NR_syssgi_pathconf:
+        case TARGET_NR_syssgi_pathconf_2:
             if (arg3 == 1) {
                 if (!(p = lock_user_string(arg1)))
                     goto efault;
@@ -14632,7 +14641,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         case TARGET_NR_syssgi_setgroups:
         case TARGET_NR_syssgi_getgroups:
         default:
-            gemu_log("qemu: Unsupported syscall: sgisys(%d)\n", (int)arg1);
+            if (g_loud_syscalls) gemu_log("qemu: Unsupported syscall: syssgi(%d)\n", (int)arg1);
             ret = -TARGET_ENOSYS;
             break;
         }
@@ -14670,11 +14679,14 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         case TARGET_NR_sysmp_naprocs: /* #processors without process limit */
             ret = 1;
             break;
+        case TARGET_NR_sysmp_saget:
+            ret = -TARGET_EINVAL; // quietly don't support this
+            break;
         case TARGET_NR_sysmp_pgsize:
             ret = TARGET_PAGE_SIZE;
             break;
         default:
-            gemu_log("qemu: Unsupported syscall: sgisysmp(%d)\n", (int)arg1);
+            if (g_loud_syscalls) gemu_log("qemu: Unsupported syscall: sgi-sysmp(%d)\n", (int)arg1);
             ret = -TARGET_ENOSYS;
             break;
         }
@@ -14690,7 +14702,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             ret = 0;
             break;
         default:
-            gemu_log("qemu: Unsupported syscall: swapctl(%d)\n", (int)arg1);
+            if (g_loud_syscalls) gemu_log("qemu: Unsupported syscall: swapctl(%d)\n", (int)arg1);
             ret = -TARGET_ENOSYS;
             break;
         }
@@ -14717,9 +14729,8 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         case TARGET_NR_sysinfo_getsrpcdomain:
             strncpy(target_buf, "", arg3-1);
             break;
-
         case TARGET_NR_sysinfo_sysname:
-            strncpy(target_buf, "IRIX", arg3-1);
+            strncpy(target_buf, "IRIX64", arg3-1);
             break;
         case TARGET_NR_sysinfo_release:
             strncpy(target_buf, "6.5", arg3-1);
@@ -14728,7 +14739,10 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             strncpy(target_buf, "01010101", arg3-1);
             break;
         case TARGET_NR_sysinfo_machine:
-            strncpy(target_buf, "IP22", arg3-1);
+            strncpy(target_buf, "IP35", arg3-1);
+            break;
+        case TARGET_NR_sysinfo_cpuarch:
+            strncpy(target_buf, "mips", arg3-1);
             break;
         case TARGET_NR_sysinfo_hwserial:
             snprintf(target_buf, arg3-1, "%12llx", 0x08006900000DULL);
@@ -14736,12 +14750,11 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         case TARGET_NR_sysinfo_hwproducer:
             strncpy(target_buf, "Qemu", arg3-1);
             break;
-
         case TARGET_NR_sysinfo_processors:
-            strncpy(target_buf, "R4000 3.0", arg3-1);
+            strncpy(target_buf, "R16000 2.1", arg3-1);
             break;
         default:
-            gemu_log("qemu: Unsupported syscall: sgisysinfo(%d)\n", (int)arg1);
+            if (g_loud_syscalls) gemu_log("qemu: Unsupported syscall: sysinfosgi(%d)\n", (int)arg1);
             ret = -TARGET_EINVAL;
         }
         ret = (ret ?: strlen(target_buf)+1);
@@ -14769,17 +14782,17 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
                 if (qemu_uname_release && *qemu_uname_release)
                   strcpy (buf.release, qemu_uname_release);
 
-                strncpy(target_buf->sysname, "IRIX", sizeof(target_buf->sysname));
+                strncpy(target_buf->sysname, "IRIX64", sizeof(target_buf->sysname));
                 strncpy(target_buf->nodename, buf.nodename, sizeof(target_buf->nodename));
                 strncpy(target_buf->release, "6.5", sizeof(target_buf->release));
                 strncpy(target_buf->version, "01010101", sizeof(target_buf->version));
-                strncpy(target_buf->machine, "IP22", sizeof(target_buf->machine));
+                strncpy(target_buf->machine, "IP35", sizeof(target_buf->machine));
             }
             unlock_user_struct(target_buf, arg1, 1);
             break;
         }
         default:
-            gemu_log("qemu: Unsupported syscall: utssys(%d)\n", (int)arg1);
+            if (g_loud_syscalls) gemu_log("qemu: Unsupported syscall: utssyssgi(%d)\n", (int)arg1);
             ret = -TARGET_ENOSYS;
             break;
         }
@@ -14791,7 +14804,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         goto unimplemented;
 
     unimplemented:
-        gemu_log("qemu: Unsupported syscall: %d\n", num);
+        if (g_loud_syscalls) gemu_log("qemu: Unsupported syscall: %d\n", num);
 #if defined(TARGET_NR_setxattr) || defined(TARGET_NR_get_thread_area) || defined(TARGET_NR_set_robust_list)
     unimplemented_nowarn:
 #endif

@@ -248,6 +248,8 @@
 #define TARGET_NR_syssgi_setpgid	(21)
 #define TARGET_NR_syssgi_sysconf	(22)
 #define TARGET_NR_syssgi_pathconf	(23)
+// 6.5.30 has PATHCONF as 24, but has a hole at 23.  Might have gotten bumped?
+#define TARGET_NR_syssgi_pathconf_2	(24)
 #define TARGET_NR_syssgi_setgroups	(40)
 #define TARGET_NR_syssgi_getgroups	(41)
 #define TARGET_NR_syssgi_settimeofday	(52)
@@ -266,6 +268,7 @@
 #define TARGET_NR_syssgi_getust		(130)
 
 /* syssgi(sysconf, cmd, ...) */
+#define TARGET_NR_sysconf_argmax	(1)
 #define TARGET_NR_sysconf_childmax	(2)
 #define TARGET_NR_sysconf_clktick	(3)
 #define TARGET_NR_sysconf_openmax	(5)
@@ -279,6 +282,7 @@
 /* sysmp(cmd, ...) */
 #define TARGET_NR_sysmp_nprocs		(1)
 #define TARGET_NR_sysmp_naprocs		(2)
+#define TARGET_NR_sysmp_saget		(10)
 #define TARGET_NR_sysmp_pgsize		(14)
 
 
@@ -353,3 +357,7 @@
 
 /* utssyssgi(obuf, ibuf, cmd) */
 #define TARGET_NR_utssys_uname		(0)
+
+/* IRIX calls this EFF_ONLY_OK */
+#define TARGET_E_OK          (8)
+
