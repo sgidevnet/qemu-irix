@@ -216,7 +216,7 @@
 #define TARGET_NR_xpg4_select	(232+TARGET_NR_Linux)
 #define TARGET_NR_xpg4_setregid	(233+TARGET_NR_Linux)
 #define	TARGET_NR_linkfollow	(234+TARGET_NR_Linux)
-
+#define TARGET_NR_sgi_utimets   (235+TARGET_NR_Linux)
 
 /* msgsys(cmd, ...), same as solaris... */
 #define TARGET_NR_msgsys_msgget		0
@@ -264,7 +264,6 @@
 #define TARGET_NR_syssgi_fdhi		(109)
 #define TARGET_NR_syssgi_fpbcopy	(129)
 #define TARGET_NR_syssgi_getust		(130)
-
 
 /* syssgi(sysconf, cmd, ...) */
 #define TARGET_NR_sysconf_childmax	(2)

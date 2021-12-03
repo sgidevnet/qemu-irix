@@ -2090,6 +2090,7 @@ static const uint32_t mips_syscall_args[] = { /* see IRIX:/usr/include/sys.s */
 	SYSCALL_ARGS(5, _, _, _),                   /* 232: xpg4_select */
 	SYSCALL_ARGS(2, _, _, _),                   /* 233: xpg4_setregid */
 	SYSCALL_ARGS(2, _, _, _),                   /* 234: linkfollow */
+    SYSCALL_ARGS(2, _, _, _),                   /* 235: sgi_utimets */
 };
 # else
 #  define MIPS_SYS(name, args)        args,

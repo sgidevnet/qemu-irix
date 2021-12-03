@@ -1734,3 +1734,6 @@
 #ifdef TARGET_NR_usync_cntl
 { TARGET_NR_usync_cntl, "usync_cntl", NULL, NULL, NULL },
 #endif
+#ifdef TARGET_NR_sgi_utimets
+{ TARGET_NR_sgi_utimets, "sgi_utimets", "%s(%d,%p)", NULL, NULL },
+#endif

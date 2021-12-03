@@ -14449,6 +14449,29 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         break;
     }
 #endif
+#ifdef TARGET_NR_sgi_utimets
+    case TARGET_NR_sgi_utimets:
+    {
+        struct timeval tv[2];
+        struct utimbuf host_tbuf;
+
+        if (copy_from_user_timeval(&tv[0], arg2) ||
+            copy_from_user_timeval(&tv[1], arg2 + sizeof(struct timeval)))
+        {
+            ret = -TARGET_EFAULT;
+            break;
+        }
+
+        if (!(p = lock_user_string(arg1)))
+            goto efault;
+        host_tbuf.actime = tv[0].tv_sec;
+        host_tbuf.modtime = tv[1].tv_sec;
+        ret = get_errno(utime(p, &host_tbuf));
+        unlock_user(p, arg1, 0);
+        ret = 0;
+        break;
+    }
+#endif
 #ifdef TARGET_NR_syssgi
     case TARGET_NR_syssgi:
     {
