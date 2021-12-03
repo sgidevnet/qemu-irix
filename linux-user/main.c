@@ -4869,6 +4869,26 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+    char shbang_chars[2];
+    int is_shbang = 0;
+    if (read(execfd, shbang_chars, 2) == 2) {
+        if (shbang_chars[0] == '#' && shbang_chars[1] == '!') {
+            is_shbang = 1;
+        }
+    }
+
+    if (is_shbang) {
+        // we got here because a child process is doing an exec() and we got pulled in.
+        #if false
+        printf("SHBANG\n");
+        for (int i = 0; i < argc; i++) {
+            printf("%d: %s\n", i, argv[i]);
+        }
+        _exit(EXIT_FAILURE);
+        #endif
+        execv(argv[3], argv + 3);
+    }
+
     if (cpu_model == NULL) {
         cpu_model = cpu_get_model(get_elf_eflags(execfd));
     }
