@@ -50,15 +50,19 @@ main(int argc, char *argv[])
     char* exe = argv[1];
     char* argv0 = argv[2];
 
-    newargv[0] = cmd;
-    newargv[1] = "-0";
-    newargv[2] = argv0;
-    newargv[3] = exe;
+    // we ignore binfmt argv0 -- if we pass it to qemu with -0,
+    // qemu keeps that arg for all subsequent qemu forks for exec;
+    // which is not what we want (means all processes will have wrong argv0)
+    int i = 0;
+    newargv[i++] = cmd;
+    newargv[i++] = exe;
 
-    for (int i = 3; i < argc; i++) {
-        newargv[i+1] = argv[i];
+    // binfmt gives us the executable first then argv0
+    int argc_offset = 3;
+    for (int j = argc_offset; j < argc; j++) {
+        newargv[i++] = argv[j];
     }
-    newargv[argc+1] = NULL;
+    newargv[i++] = NULL;
 
     if (log) {
         fprintf(log, "execv: '%s' argv: ", cmd);
